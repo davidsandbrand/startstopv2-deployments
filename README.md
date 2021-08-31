@@ -8,7 +8,7 @@ V2 User Guide : https://docs.microsoft.com/en-us/azure/azure-functions/start-sto
 
 # Global Azure (Preview) 
 
-<a href="https%3A%2F%2Fportal.azure.com%2F%23create%2FMicrosoft.Template%2Furi%2Fhttps%3A%2F%2Fraw.githubusercontent.com%2Fdavidsandbrand%2Fstartstopv2-deployments%2Fmain%2Fazuredeploy.json" target="_blank">
+<a href="https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fdavidsandbrand%2Fstartstopv2-deployments%2Fmain%2Fazuredeploy.json" target="_blank">
   <img src="https://raw.githubusercontent.com/Azure/azure-quickstart-templates/master/1-CONTRIBUTION-GUIDE/images/deploytoazure.svg?sanitize=true"/>
 </a>
 
