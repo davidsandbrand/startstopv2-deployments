@@ -95,9 +95,9 @@
     "storageAccountName": {
       "type": "String",
       "minLength": 3,
-      "maxLength": 18,
+      "maxLength": 24,
       "metadata": {
-        "description": "The name of the storage account for Start/Stop execution data logging. Name MUST be globally unique and contain only lowercase letters and numbers. Length of the name MUST be less than 18 characters."
+        "description": "The name of the storage account for Start/Stop execution data logging. Name MUST be globally unique and contain only lowercase letters and numbers. Length of the name MUST be less than 24 characters."
       }
     },
     "Email Addresses": {
