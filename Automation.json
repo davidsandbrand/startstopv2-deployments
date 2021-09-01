@@ -1,0 +1,1010 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "resourceGroupName": {
+      "type": "string",
+      "metadata": {
+        "description": "The name of the resource group."
+      }
+    },
+    "resourceGroupRegion": {
+      "type": "string",
+      "defaultValue": "eastus",
+      "metadata": {
+        "description": "The location of the resource group."
+      }
+    },
+    "azureFunctionName": {
+      "type": "string",
+      "metadata": {
+        "description": "The name of the azure function for Start/Stop V2."
+      }
+    },
+    "appInsightName": {
+      "type": "string",
+      "metadata": {
+        "description": "Application Insight Name."
+      }
+    },
+    "appInsightRegion": {
+      "type": "string",
+      "defaultValue": "eastus",
+      "metadata": {
+        "description": "Application Insight Region."
+      }
+    },
+    "storageAccountName": {
+      "type": "String",
+      "defaultValue": "stst",
+      "maxLength": 20
+    },
+    "AzureCloudEnvironment": {
+      "type": "string",
+      "defaultValue": "AzureGlobalCloud",
+      "allowedValues": [
+        "AzureGlobalCloud",
+        "AzureUSGovernment"
+      ],
+      "metadata": {
+        "description": "Azure subscription environment type"
+      }
+    }
+  },
+  "variables": {
+    "storageAccountName": "[toLower(parameters('storageAccountName'))]",
+    "functionAppNameStartStopV2": "[parameters('azureFunctionName')]",
+    "hostingPlanName": "[concat(variables('functionAppNameStartStopV2'),'-plan')]",
+    "applicationInsightsName": "[parameters('appInsightName')]",
+    "storageAccountid": "[concat(resourceGroup().id,'/providers/','Microsoft.Storage/storageAccounts/', variables('storageAccountName'))]",
+    "functionWorkerRuntime": "dotnet",
+    "identity_resource_id": "[concat(resourceId('Microsoft.Web/sites', variables('functionAppNameStartStopV2')), '/providers/Microsoft.ManagedIdentity/Identities/default')]",
+    "Owner": "[concat('/subscriptions/', subscription().subscriptionId, '/providers/Microsoft.Authorization/roleDefinitions/', '8e3af657-a8ff-443c-a75c-2fe8c4bcb635')]",
+    "Contributor": "[concat('/subscriptions/', subscription().subscriptionId, '/providers/Microsoft.Authorization/roleDefinitions/', 'b24988ac-6180-42a0-ab88-20f7382dd24c')]",
+    "Reader": "[concat('/subscriptions/', subscription().subscriptionId, '/providers/Microsoft.Authorization/roleDefinitions/', 'acdd72a7-3385-48ef-bd42-f606fba81ae7')]",
+    "scopeRG": "[resourcegroup().id]",
+    "scopeSub": "[subscription().id]",
+    "sas": "?sv=2019-02-02&st=2020-06-24T00%3A29%3A01Z&se=2030-06-25T00%3A29%3A00Z&sr=c&sp=r&sig=b8ZTNoY46IANeOadIpzSfEXaBcwymkEhF8v3ICnKhps%3D",
+    "Functionpackage": "[concat('https://startstopv2prod.blob.core.windows.net/artifacts/StartStopV2.zip',variables('sas') )]",
+    "FunctionApp_Externalid": "[concat('/subscriptions/', subscription().subscriptionId, '/resourceGroups/',resourceGroup().name,'/providers/Microsoft.Web/sites/',variables('functionAppNameStartStopV2'))]",
+    "LogicApp_Start_Scheduled": "ststv2_vms_Scheduled_start",
+    "LogicApp_Stop_Scheduled": "ststv2_vms_Scheduled_stop",
+    "LogicApp_Start_Sequenced": "ststv2_vms_Sequenced_start",
+    "LogicApp_Stop_Sequenced": "ststv2_vms_Sequenced_stop",
+    "LogicApp_AutoStop": "ststv2_vms_AutoStop",
+    "StorageTableDefault": "[concat(variables('storageAccountName'),'/default')]",
+    "StorageTableName": "[concat(variables('StorageTableDefault'),'/requeststoretable')]",
+    "StorageQueueDefault": "[concat(variables('storageAccountName'),'/default')]",
+    "SubscriptionRequestStoreTable": "[concat(variables('StorageTableDefault'),'/subscriptionrequeststoretable')]",
+    "StorageQueueName_SavingsReq": "[concat(variables('StorageQueueDefault'),'/savings-request-queue')]",
+    "StorageQueueName_ExecReq": "[concat(variables('StorageQueueDefault'),'/execution-request')]",
+    "StorageQueueName_OrchReq": "[concat(variables('StorageQueueDefault'),'/orchestration-request')]",
+    "StorageQueueName_CreaReq": "[concat(variables('StorageQueueDefault'),'/create-alert-request')]"
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Storage/storageAccounts",
+      "apiVersion": "2021-06-01",
+      "name": "[variables('storageAccountName')]",
+      "location": "[resourceGroup().location]",
+      "tags": {
+        "SolutionName": "StartStopV2"
+      },
+      "dependsOn": [
+        
+      ],
+      "sku": {
+        "name": "Standard_LRS"
+      },
+      "kind": "Storage",
+      "properties": {
+        "supportsHttpsTrafficOnly": true
+      },
+      "resources": [
+        {
+          "type": "Microsoft.Storage/storageAccounts/tableServices",
+          "apiVersion": "2021-06-01",
+          "name": "[variables('StorageTableDefault')]",
+          "dependsOn": [
+            "[resourceId('Microsoft.Storage/storageAccounts',variables('storageAccountName'))]"
+          ],
+          "properties": {
+            
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Storage/storageAccounts/tableServices/tables",
+              "apiVersion": "2021-06-01",
+              "name": "[variables('StorageTableName')]",
+              "dependsOn": [
+                "[resourceId('Microsoft.Storage/storageAccounts',variables('storageAccountName'))]",
+                "[concat('/subscriptions/', subscription().subscriptionId, '/resourceGroups/',resourceGroup().name,'/providers/Microsoft.Storage/storageAccounts/',variables('storageAccountName'),'/tableServices/default')]"
+              ]
+            },
+            {
+              "type": "Microsoft.Storage/storageAccounts/tableServices/tables",
+              "apiVersion": "2021-06-01",
+              "name": "[variables('SubscriptionRequestStoreTable')]",
+              "dependsOn": [
+                "[resourceId('Microsoft.Storage/storageAccounts',variables('storageAccountName'))]",
+                "[concat('/subscriptions/', subscription().subscriptionId, '/resourceGroups/',resourceGroup().name,'/providers/Microsoft.Storage/storageAccounts/',variables('storageAccountName'),'/tableServices/default')]"
+              ]
+            }
+          ]
+        },
+        {
+          "type": "Microsoft.Storage/storageAccounts/queueServices",
+          "apiVersion": "2021-06-01",
+          "name": "[variables('StorageQueueDefault')]",
+          "dependsOn": [
+            "[resourceId('Microsoft.Storage/storageAccounts',variables('storageAccountName'))]"
+          ],
+          "properties": {
+            
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Storage/storageAccounts/queueServices/queues",
+              "apiVersion": "2021-06-01",
+              "name": "[variables('StorageQueueName_ExecReq')]",
+              "dependsOn": [
+                "[resourceId('Microsoft.Storage/storageAccounts',variables('storageAccountName'))]",
+                "[concat('/subscriptions/', subscription().subscriptionId, '/resourceGroups/',resourceGroup().name,'/providers/Microsoft.Storage/storageAccounts/',variables('storageAccountName'),'/queueServices/default')]"
+              ],
+              "properties": {
+                "metadata": {
+                  
+                }
+              }
+            },
+            {
+              "type": "Microsoft.Storage/storageAccounts/queueServices/queues",
+              "apiVersion": "2021-06-01",
+              "name": "[variables('StorageQueueName_OrchReq')]",
+              "dependsOn": [
+                "[resourceId('Microsoft.Storage/storageAccounts',variables('storageAccountName'))]",
+                "[concat('/subscriptions/', subscription().subscriptionId, '/resourceGroups/',resourceGroup().name,'/providers/Microsoft.Storage/storageAccounts/',variables('storageAccountName'),'/queueServices/default')]"
+              ],
+              "properties": {
+                "metadata": {
+                  
+                }
+              }
+            },
+            {
+              "type": "Microsoft.Storage/storageAccounts/queueServices/queues",
+              "apiVersion": "2021-06-01",
+              "name": "[variables('StorageQueueName_CreaReq')]",
+              "dependsOn": [
+                "[resourceId('Microsoft.Storage/storageAccounts',variables('storageAccountName'))]",
+                "[concat('/subscriptions/', subscription().subscriptionId, '/resourceGroups/',resourceGroup().name,'/providers/Microsoft.Storage/storageAccounts/',variables('storageAccountName'),'/queueServices/default')]"
+              ],
+              "properties": {
+                "metadata": {
+                  
+                }
+              }
+            },
+            {
+              "type": "Microsoft.Storage/storageAccounts/queueServices/queues",
+              "apiVersion": "2021-06-01",
+              "name": "[variables('StorageQueueName_SavingsReq')]",
+              "dependsOn": [
+                "[resourceId('Microsoft.Storage/storageAccounts',variables('storageAccountName'))]",
+                "[concat('/subscriptions/', subscription().subscriptionId, '/resourceGroups/',resourceGroup().name,'/providers/Microsoft.Storage/storageAccounts/',variables('storageAccountName'),'/queueServices/default')]"
+              ],
+              "properties": {
+                "metadata": {
+                  
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "Microsoft.Web/serverfarms",
+      "apiVersion": "2021-02-01",
+      "name": "[variables('hostingPlanName')]",
+      "location": "[resourceGroup().location]",
+      "tags": {
+        "SolutionName": "StartStopV2"
+      },
+      "sku": {
+        "name": "Y1",
+        "tier": "Dynamic"
+      },
+      "properties": {
+        "name": "[variables('hostingPlanName')]",
+        "computeMode": "Dynamic"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Storage/storageAccounts',variables('storageAccountName'))]"
+      ]
+    },
+    {
+      "apiVersion": "2021-02-01",
+      "type": "Microsoft.Web/sites",
+      "name": "[variables('functionAppNameStartStopV2')]",
+      "location": "[resourceGroup().location]",
+      "tags": {
+        "SolutionName": "StartStopV2"
+      },
+      "kind": "functionapp",
+      "dependsOn": [
+        "[resourceId('Microsoft.Storage/storageAccounts',variables('storageAccountName'))]",
+        "[resourceId('Microsoft.Web/serverfarms', variables('hostingPlanName'))]"
+      ],
+      "identity": {
+        "type": "SystemAssigned"
+      },
+      "properties": {
+        "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', variables('hostingPlanName'))]",
+        "httpsOnly": true,
+        "siteConfig": {
+          "appSettings": [
+            {
+              "name": "AzureWebJobsDisableHomepage",
+              "value": "true"
+            },
+            {
+              "name": "AzureWebJobsStorage",
+              "value": "[concat('DefaultEndpointsProtocol=https;AccountName=', variables('storageAccountName'), ';AccountKey=', listKeys(variables('storageAccountid'),'2015-05-01-preview').key1)]"
+            },
+            {
+              "name": "WEBSITE_CONTENTAZUREFILECONNECTIONSTRING",
+              "value": "[concat('DefaultEndpointsProtocol=https;AccountName=', variables('storageAccountName'), ';AccountKey=', listKeys(variables('storageAccountid'),'2015-05-01-preview').key1)]"
+            },
+            {
+              "name": "WEBSITE_CONTENTSHARE",
+              "value": "[toLower(variables('functionAppNameStartStopV2'))]"
+            },
+            {
+              "name": "FUNCTIONS_EXTENSION_VERSION",
+              "value": "~3"
+            },
+            {
+              "name": "WEBSITE_NODE_DEFAULT_VERSION",
+              "value": "~10"
+            },
+            {
+              "name": "APPLICATIONINSIGHTS_CONNECTION_STRING",
+              "value": "[reference(resourceId('microsoft.insights/components/', variables('applicationInsightsName')), '2020-02-02-preview').ConnectionString]"
+            },
+            {
+              "name": "FUNCTIONS_WORKER_RUNTIME",
+              "value": "[variables('functionWorkerRuntime')]"
+            },
+            {
+              "name": "AzureClientOptions:SubscriptionId",
+              "value": "[subscription().subscriptionId]"
+            },
+            {
+              "name": "AzureClientOptions:ResourceGroup",
+              "value": "[resourceGroup().name]"
+            },
+            {
+              "name": "AzureClientOptions:FunctionAppName",
+              "value": "[variables('functionAppNameStartStopV2')]"
+            },
+            {
+              "name": "AzureClientOptions:TenantId",
+              "value": "[subscription().tenantId]"
+            },
+            {
+              "name": "AzureClientOptions:AzureEnvironment",
+              "value": "[parameters('AzureCloudEnvironment')]"
+            },
+            {
+              "name": "StorageOptions:StorageAccountConnectionString",
+              "value": "[concat('DefaultEndpointsProtocol=https;AccountName=', variables('storageAccountName'), ';AccountKey=', listKeys(variables('storageAccountid'),'2015-05-01-preview').key1)]"
+            },
+            {
+              "name": "StorageOptions:CreateAutoStopAlertRequestQueue",
+              "value": "create-alert-request"
+            },
+            {
+              "name": "StorageOptions:OrchestrationRequestQueue",
+              "value": "orchestration-request"
+            },
+            {
+              "name": "StorageOptions:ExecutionRequestQueue",
+              "value": "execution-request"
+            },
+            {
+              "name": "StorageOptions:SavingsRequestQueue",
+              "value": "savings-request-queue"
+            },
+            {
+              "name": "StorageOptions:RequestStoreTable",
+              "value": "requeststoretable"
+            },
+            {
+              "name": "StorageOptions:SubscriptionRequestStoreTable",
+              "value": "subscriptionrequeststoretable"
+            },
+            {
+              "name": "CentralizedLoggingOptions:InstrumentationKey",
+              "value": "294eafc8-410b-4170-aecb-dfaa5cb6eeaa"
+            },
+            {
+              "name": "CentralizedLoggingOptions:Version",
+              "value": "1.0.20210819.1"
+            }
+          ]
+        }
+      },
+      "resources": [
+        {
+          "name": "MSDeploy",
+          "type": "extensions",
+          "location": "[resourceGroup().location]",
+          "apiVersion": "2021-02-01",
+          "dependsOn": [
+            "[resourceId('Microsoft.Web/sites', variables('functionAppNameStartStopV2'))]"
+          ],
+          "tags": {
+            "displayName": "MSDeploy Initial Functions"
+          },
+          "properties": {
+            "packageUri": "[variables('Functionpackage')]",
+            "dbType": "None",
+            "connectionString": "",
+            "setParameters": {
+              
+            }
+          }
+        }
+      ]
+    },
+    {
+      "apiVersion": "2020-02-02",
+      "name": "[variables('applicationInsightsName')]",
+      "type": "microsoft.insights/components",
+      "location": "[parameters('appInsightRegion')]",
+      "tags": {
+        "SolutionName": "StartStopV2"
+      },
+      "properties": {
+        "ApplicationId": "[variables('applicationInsightsName')]",
+        "Request_Source": "IbizaWebAppExtensionCreate"
+      }
+    },
+    {
+      "type": "Microsoft.Logic/workflows",
+      "apiVersion": "2019-05-01",
+      "name": "[variables('LogicApp_Start_Scheduled')]",
+      "location": "[resourceGroup().location]",
+      "tags": {
+        "SolutionName": "StartStopV2"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Storage/storageAccounts',variables('storageAccountName'))]",
+        "[resourceId('Microsoft.Web/sites', variables('functionAppNameStartStopV2'))]",
+        "[resourceId('Microsoft.insights/components/', variables('applicationInsightsName'))]",
+        "[concat('Microsoft.Web/sites/',variables('functionAppNameStartStopV2'),'/extensions/','MSDeploy')]"
+      ],
+      "properties": {
+        "state": "Disabled",
+        "definition": {
+          "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+          "contentVersion": "1.0.0.0",
+          "parameters": {
+            
+          },
+          "triggers": {
+            "Recurrence": {
+              "recurrence": {
+                "frequency": "Day",
+                "interval": 1,
+                "schedule": {
+                  "hours": [
+                    "6"
+                  ],
+                  "minutes": [
+                    0
+                  ]
+                },
+                "timeZone": "Pacific Standard Time"
+              },
+              "type": "Recurrence"
+            }
+          },
+          "actions": {
+            "Function-Catch": {
+              "actions": {
+                "Terminate": {
+                  "runAfter": {
+                    
+                  },
+                  "type": "Terminate",
+                  "inputs": {
+                    "runError": {
+                      "code": "@{outputs('Scheduled')['statusCode']}",
+                      "message": "@{body('Scheduled')}"
+                    },
+                    "runStatus": "Failed"
+                  }
+                }
+              },
+              "runAfter": {
+                "Function-Try": [
+                  "Failed",
+                  "Skipped",
+                  "TimedOut"
+                ]
+              },
+              "type": "Scope"
+            },
+            "Function-Success": {
+              "actions": {
+                
+              },
+              "runAfter": {
+                "Function-Try": [
+                  "Succeeded"
+                ]
+              },
+              "type": "Scope"
+            },
+            "Function-Try": {
+              "actions": {
+                "Scheduled": {
+                  "runAfter": {
+                    
+                  },
+                  "type": "Function",
+                  "inputs": {
+                    "body": {
+                      "Action": "start",
+                      "EnableClassic": false,
+                      "RequestScopes": {
+                        "ResourceGroups": [
+                          "/subscriptions/11111111-2222-3333-4444-555555555555/resourceGroups/rg1/",
+                          "/subscriptions/11111111-2222-3333-4444-555555555555/resourceGroups/rg2/"
+                        ],
+                        "ExcludedVMLists": [
+                          
+                        ]
+                      }
+                    },
+                    "function": {
+                      "id": "[concat(variables('FunctionApp_Externalid'), '/functions/Scheduled')]"
+                    }
+                  }
+                }
+              },
+              "runAfter": {
+                
+              },
+              "type": "Scope"
+            }
+          },
+          "outputs": {
+            
+          }
+        },
+        "parameters": {
+          
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Logic/workflows",
+      "apiVersion": "2019-05-01",
+      "name": "[variables('LogicApp_Stop_Scheduled')]",
+      "location": "[resourceGroup().location]",
+      "tags": {
+        "SolutionName": "StartStopV2"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Storage/storageAccounts',variables('storageAccountName'))]",
+        "[resourceId('Microsoft.Web/sites', variables('functionAppNameStartStopV2'))]",
+        "[resourceId('Microsoft.insights/components/', variables('applicationInsightsName'))]",
+        "[concat('Microsoft.Web/sites/',variables('functionAppNameStartStopV2'),'/extensions/','MSDeploy')]",
+        "[resourceId('Microsoft.Logic/workflows',variables('LogicApp_Start_Scheduled'))]"
+      ],
+      "properties": {
+        "state": "Disabled",
+        "definition": {
+          "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+          "contentVersion": "1.0.0.0",
+          "parameters": {
+            
+          },
+          "triggers": {
+            "Recurrence": {
+              "recurrence": {
+                "frequency": "Day",
+                "interval": 1,
+                "schedule": {
+                  "hours": [
+                    "18"
+                  ],
+                  "minutes": [
+                    30
+                  ]
+                },
+                "timeZone": "Pacific Standard Time"
+              },
+              "type": "Recurrence"
+            }
+          },
+          "actions": {
+            "Function-Catch": {
+              "actions": {
+                "Terminate": {
+                  "runAfter": {
+                    
+                  },
+                  "type": "Terminate",
+                  "inputs": {
+                    "runError": {
+                      "code": "@{outputs('Scheduled')['statusCode']}",
+                      "message": "@{body('Scheduled')}"
+                    },
+                    "runStatus": "Failed"
+                  }
+                }
+              },
+              "runAfter": {
+                "Function-Try": [
+                  "Failed",
+                  "Skipped",
+                  "TimedOut"
+                ]
+              },
+              "type": "Scope"
+            },
+            "Function-Success": {
+              "actions": {
+                
+              },
+              "runAfter": {
+                "Function-Try": [
+                  "Succeeded"
+                ]
+              },
+              "type": "Scope"
+            },
+            "Function-Try": {
+              "actions": {
+                "Scheduled": {
+                  "runAfter": {
+                    
+                  },
+                  "type": "Function",
+                  "inputs": {
+                    "body": {
+                      "Action": "stop",
+                      "EnableClassic": false,
+                      "RequestScopes": {
+                        "ResourceGroups": [
+                          "/subscriptions/11111111-2222-3333-4444-555555555555/resourceGroups/rg1/",
+                          "/subscriptions/11111111-2222-3333-4444-555555555555/resourceGroups/rg2/"
+                        ],
+                        "ExcludedVMLists": [
+                          
+                        ]
+                      }
+                    },
+                    "function": {
+                      "id": "[concat(variables('FunctionApp_Externalid'), '/functions/Scheduled')]"
+                    }
+                  }
+                }
+              },
+              "runAfter": {
+                
+              },
+              "type": "Scope"
+            }
+          },
+          "outputs": {
+            
+          }
+        },
+        "parameters": {
+          
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Logic/workflows",
+      "apiVersion": "2019-05-01",
+      "name": "[variables('LogicApp_Start_Sequenced')]",
+      "location": "[resourceGroup().location]",
+      "tags": {
+        "SolutionName": "StartStopV2"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Storage/storageAccounts',variables('storageAccountName'))]",
+        "[resourceId('Microsoft.Web/sites', variables('functionAppNameStartStopV2'))]",
+        "[resourceId('Microsoft.insights/components/', variables('applicationInsightsName'))]",
+        "[concat('Microsoft.Web/sites/',variables('functionAppNameStartStopV2'),'/extensions/','MSDeploy')]",
+        "[resourceId('Microsoft.Logic/workflows',variables('LogicApp_Start_Scheduled'))]",
+        "[resourceId('Microsoft.Logic/workflows',variables('LogicApp_Stop_Scheduled'))]"
+      ],
+      "properties": {
+        "state": "Disabled",
+        "definition": {
+          "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+          "contentVersion": "1.0.0.0",
+          "parameters": {
+            
+          },
+          "triggers": {
+            "Recurrence": {
+              "recurrence": {
+                "frequency": "Day",
+                "interval": 1,
+                "schedule": {
+                  "hours": [
+                    "6"
+                  ],
+                  "minutes": [
+                    0
+                  ]
+                },
+                "timeZone": "Pacific Standard Time"
+              },
+              "type": "Recurrence"
+            }
+          },
+          "actions": {
+            "Function-Catch": {
+              "actions": {
+                "Terminate": {
+                  "runAfter": {
+                    
+                  },
+                  "type": "Terminate",
+                  "inputs": {
+                    "runError": {
+                      "code": "@{outputs('Scheduled')['statusCode']}",
+                      "message": "@{body('Scheduled')}"
+                    },
+                    "runStatus": "Failed"
+                  }
+                }
+              },
+              "runAfter": {
+                "Function-Try": [
+                  "Failed",
+                  "Skipped",
+                  "TimedOut"
+                ]
+              },
+              "type": "Scope"
+            },
+            "Function-Success": {
+              "actions": {
+                
+              },
+              "runAfter": {
+                "Function-Try": [
+                  "Succeeded"
+                ]
+              },
+              "type": "Scope"
+            },
+            "Function-Try": {
+              "actions": {
+                "Scheduled": {
+                  "runAfter": {
+                    
+                  },
+                  "type": "Function",
+                  "inputs": {
+                    "body": {
+                      "Action": "start",
+                      "Sequenced": true,
+                      "RequestScopes": {
+                        "ResourceGroups": [
+                          "/subscriptions/11111111-2222-3333-4444-555555555555/resourceGroups/rg1/",
+                          "/subscriptions/11111111-2222-3333-4444-555555555555/resourceGroups/rg2/"
+                        ],
+                        "ExcludedVMLists": [
+                          
+                        ]
+                      }
+                    },
+                    "function": {
+                      "id": "[concat(variables('FunctionApp_Externalid'), '/functions/Scheduled')]"
+                    }
+                  }
+                }
+              },
+              "runAfter": {
+                
+              },
+              "type": "Scope"
+            }
+          },
+          "outputs": {
+            
+          }
+        },
+        "parameters": {
+          
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Logic/workflows",
+      "apiVersion": "2019-05-01",
+      "name": "[variables('LogicApp_Stop_Sequenced')]",
+      "location": "[resourceGroup().location]",
+      "tags": {
+        "SolutionName": "StartStopV2"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Storage/storageAccounts',variables('storageAccountName'))]",
+        "[resourceId('Microsoft.Web/sites', variables('functionAppNameStartStopV2'))]",
+        "[resourceId('Microsoft.insights/components/', variables('applicationInsightsName'))]",
+        "[concat('Microsoft.Web/sites/',variables('functionAppNameStartStopV2'),'/extensions/','MSDeploy')]",
+        "[resourceId('Microsoft.Logic/workflows',variables('LogicApp_Start_Scheduled'))]",
+        "[resourceId('Microsoft.Logic/workflows',variables('LogicApp_Stop_Scheduled'))]",
+        "[resourceId('Microsoft.Logic/workflows',variables('LogicApp_Start_Sequenced'))]"
+      ],
+      "properties": {
+        "state": "Disabled",
+        "definition": {
+          "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+          "contentVersion": "1.0.0.0",
+          "parameters": {
+            
+          },
+          "triggers": {
+            "Recurrence": {
+              "recurrence": {
+                "frequency": "Day",
+                "interval": 1,
+                "schedule": {
+                  "hours": [
+                    "18"
+                  ],
+                  "minutes": [
+                    30
+                  ]
+                },
+                "timeZone": "Pacific Standard Time"
+              },
+              "type": "Recurrence"
+            }
+          },
+          "actions": {
+            "Function-Catch": {
+              "actions": {
+                "Terminate": {
+                  "runAfter": {
+                    
+                  },
+                  "type": "Terminate",
+                  "inputs": {
+                    "runError": {
+                      "code": "@{outputs('Scheduled')['statusCode']}",
+                      "message": "@{body('Scheduled')}"
+                    },
+                    "runStatus": "Failed"
+                  }
+                }
+              },
+              "runAfter": {
+                "Function-Try": [
+                  "Failed",
+                  "Skipped",
+                  "TimedOut"
+                ]
+              },
+              "type": "Scope"
+            },
+            "Function-Success": {
+              "actions": {
+                
+              },
+              "runAfter": {
+                "Function-Try": [
+                  "Succeeded"
+                ]
+              },
+              "type": "Scope"
+            },
+            "Function-Try": {
+              "actions": {
+                "Scheduled": {
+                  "runAfter": {
+                    
+                  },
+                  "type": "Function",
+                  "inputs": {
+                    "body": {
+                      "Action": "stop",
+                      "Sequenced": true,
+                      "RequestScopes": {
+                        "ResourceGroups": [
+                          "/subscriptions/11111111-2222-3333-4444-555555555555/resourceGroups/rg1/",
+                          "/subscriptions/11111111-2222-3333-4444-555555555555/resourceGroups/rg2/"
+                        ],
+                        "ExcludedVMLists": [
+                          
+                        ]
+                      }
+                    },
+                    "function": {
+                      "id": "[concat(variables('FunctionApp_Externalid'), '/functions/Scheduled')]"
+                    }
+                  }
+                }
+              },
+              "runAfter": {
+                
+              },
+              "type": "Scope"
+            }
+          },
+          "outputs": {
+            
+          }
+        },
+        "parameters": {
+          
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Logic/workflows",
+      "apiVersion": "2019-05-01",
+      "name": "[variables('LogicApp_AutoStop')]",
+      "location": "[resourceGroup().location]",
+      "tags": {
+        "SolutionName": "StartStopV2"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Storage/storageAccounts',variables('storageAccountName'))]",
+        "[resourceId('Microsoft.Web/sites', variables('functionAppNameStartStopV2'))]",
+        "[resourceId('Microsoft.insights/components/', variables('applicationInsightsName'))]",
+        "[concat('Microsoft.Web/sites/',variables('functionAppNameStartStopV2'),'/extensions/','MSDeploy')]",
+        "[resourceId('Microsoft.Logic/workflows',variables('LogicApp_Start_Scheduled'))]",
+        "[resourceId('Microsoft.Logic/workflows',variables('LogicApp_Stop_Scheduled'))]",
+        "[resourceId('Microsoft.Logic/workflows',variables('LogicApp_Start_Sequenced'))]",
+        "[resourceId('Microsoft.Logic/workflows',variables('LogicApp_Stop_Sequenced'))]"
+      ],
+      "properties": {
+        "state": "Disabled",
+        "definition": {
+          "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+          "contentVersion": "1.0.0.0",
+          "parameters": {
+            
+          },
+          "triggers": {
+            "Recurrence": {
+              "recurrence": {
+                "frequency": "Hour",
+                "interval": 8,
+                "timeZone": "Pacific Standard Time"
+              },
+              "type": "Recurrence"
+            }
+          },
+          "actions": {
+            "Function-Catch": {
+              "actions": {
+                "Terminate": {
+                  "runAfter": {
+                    
+                  },
+                  "type": "Terminate",
+                  "inputs": {
+                    "runError": {
+                      "code": "@{outputs('AutoStop')['statusCode']}",
+                      "message": "@{body('AutoStop')}"
+                    },
+                    "runStatus": "Failed"
+                  }
+                }
+              },
+              "runAfter": {
+                "Function-Try": [
+                  "Failed",
+                  "Skipped",
+                  "TimedOut"
+                ]
+              },
+              "type": "Scope"
+            },
+            "Function-Success": {
+              "actions": {
+                
+              },
+              "runAfter": {
+                "Function-Try": [
+                  "Succeeded"
+                ]
+              },
+              "type": "Scope"
+            },
+            "Function-Try": {
+              "actions": {
+                "AutoStop": {
+                  "runAfter": {
+                    
+                  },
+                  "type": "Function",
+                  "inputs": {
+                    "body": {
+                      "Action": "stop",
+                      "EnableClassic": false,
+                      "AutoStop_MetricName": "Percentage CPU",
+                      "AutoStop_Condition": "LessThan",
+                      "AutoStop_Description": "Alert to stop the VM if the CPU % exceed the threshold",
+                      "AutoStop_Frequency": "00:05:00",
+                      "AutoStop_Severity": "2",
+                      "AutoStop_Threshold": "5",
+                      "AutoStop_TimeAggregationOperator": "Average",
+                      "AutoStop_TimeWindow": "06:00:00",
+                      "RequestScopes": {
+                        "ResourceGroups": [
+                          "/subscriptions/11111111-2222-3333-4444-555555555555/resourceGroups/rg1/",
+                          "/subscriptions/11111111-2222-3333-4444-555555555555/resourceGroups/rg2/"
+                        ],
+                        "ExcludedVMLists": [
+                          
+                        ]
+                      }
+                    },
+                    "function": {
+                      "id": "[concat(variables('FunctionApp_Externalid'), '/functions/AutoStop')]"
+                    }
+                  }
+                }
+              },
+              "runAfter": {
+                
+              },
+              "type": "Scope"
+            }
+          },
+          "outputs": {
+            
+          }
+        },
+        "parameters": {
+          
+        }
+      }
+    }
+  ],
+  "outputs": {
+    "resourcegroupName": {
+      "type": "String",
+      "value": "[resourceGroup().name]"
+    },
+    "storageAccountName": {
+      "type": "String",
+      "value": "[variables('storageAccountName')]"
+    },
+    "functionAppName": {
+      "type": "string",
+      "value": "[variables('functionAppNameStartStopV2')]"
+    },
+    "appInsightName": {
+      "type": "string",
+      "value": "[variables('applicationInsightsName')]"
+    },
+    "managedId": {
+      "type": "string",
+      "value": "[variables('identity_resource_id')]"
+    },
+    "pId": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Web/sites', variables('functionAppNameStartStopV2')), '2021-02-01', 'Full').identity.principalId]"
+    },
+    "FuncApp_ExternalId": {
+      "type": "string",
+      "value": "[variables('FunctionApp_Externalid')]"
+    }
+  }
+}
