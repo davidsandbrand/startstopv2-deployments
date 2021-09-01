@@ -1,5 +1,5 @@
 {
-  "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
   "contentVersion": "1.0.0.0",
   "parameters": {    
     "Email Addresses": {
@@ -114,7 +114,7 @@
   "resources": [
     {
       "type": "Microsoft.Insights/actionGroups",
-      "apiVersion": "2018-09-01",
+      "apiVersion": "2019-06-01",
       "name": "[variables('actionGroupName')]",
       "location": "Global",
       "properties": {
@@ -135,7 +135,7 @@
     {
       "name": "[variables('alertArray')[copyIndex()].alertName]",
       "type": "Microsoft.Insights/scheduledQueryRules",
-      "apiVersion": "2018-04-16",
+      "apiVersion": "2021-02-01-preview",
       "location": "[variables('alertArray')[copyIndex()].alertLocation]",
       "tags": { "[variables('alertArray')[copyIndex()].alertTag]": "Resource" },
       "copy": {
