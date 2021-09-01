@@ -53,7 +53,7 @@
   },
   "variables": {
     "storageAccountName": "[toLower(parameters('storageAccountName'))]",
-    "functionAppNameStartStopV2": "[parameters('azureFunctionName')]",
+    "functionAppNameStartStopV2": "[ parameters('azureFunctionName')]",
     "hostingPlanName": "[concat(variables('functionAppNameStartStopV2'),'-plan')]",
     "applicationInsightsName": "[parameters('appInsightName')]",
     "storageAccountid": "[concat(resourceGroup().id,'/providers/','Microsoft.Storage/storageAccounts/', variables('storageAccountName'))]",
@@ -84,7 +84,7 @@
   "resources": [
     {
       "type": "Microsoft.Storage/storageAccounts",
-      "apiVersion": "2021-06-01",
+      "apiVersion": "2019-06-01",
       "name": "[variables('storageAccountName')]",
       "location": "[resourceGroup().location]",
       "tags": {
@@ -103,7 +103,7 @@
       "resources": [
         {
           "type": "Microsoft.Storage/storageAccounts/tableServices",
-          "apiVersion": "2021-06-01",
+          "apiVersion": "2019-06-01",
           "name": "[variables('StorageTableDefault')]",
           "dependsOn": [
             "[resourceId('Microsoft.Storage/storageAccounts',variables('storageAccountName'))]"
@@ -114,7 +114,7 @@
           "resources": [
             {
               "type": "Microsoft.Storage/storageAccounts/tableServices/tables",
-              "apiVersion": "2021-06-01",
+              "apiVersion": "2019-06-01",
               "name": "[variables('StorageTableName')]",
               "dependsOn": [
                 "[resourceId('Microsoft.Storage/storageAccounts',variables('storageAccountName'))]",
@@ -123,7 +123,7 @@
             },
             {
               "type": "Microsoft.Storage/storageAccounts/tableServices/tables",
-              "apiVersion": "2021-06-01",
+              "apiVersion": "2019-06-01",
               "name": "[variables('SubscriptionRequestStoreTable')]",
               "dependsOn": [
                 "[resourceId('Microsoft.Storage/storageAccounts',variables('storageAccountName'))]",
@@ -134,7 +134,7 @@
         },
         {
           "type": "Microsoft.Storage/storageAccounts/queueServices",
-          "apiVersion": "2021-06-01",
+          "apiVersion": "2019-06-01",
           "name": "[variables('StorageQueueDefault')]",
           "dependsOn": [
             "[resourceId('Microsoft.Storage/storageAccounts',variables('storageAccountName'))]"
@@ -145,7 +145,7 @@
           "resources": [
             {
               "type": "Microsoft.Storage/storageAccounts/queueServices/queues",
-              "apiVersion": "2021-06-01",
+              "apiVersion": "2019-06-01",
               "name": "[variables('StorageQueueName_ExecReq')]",
               "dependsOn": [
                 "[resourceId('Microsoft.Storage/storageAccounts',variables('storageAccountName'))]",
@@ -159,7 +159,7 @@
             },
             {
               "type": "Microsoft.Storage/storageAccounts/queueServices/queues",
-              "apiVersion": "2021-06-01",
+              "apiVersion": "2019-06-01",
               "name": "[variables('StorageQueueName_OrchReq')]",
               "dependsOn": [
                 "[resourceId('Microsoft.Storage/storageAccounts',variables('storageAccountName'))]",
@@ -173,7 +173,7 @@
             },
             {
               "type": "Microsoft.Storage/storageAccounts/queueServices/queues",
-              "apiVersion": "2021-06-01",
+              "apiVersion": "2019-06-01",
               "name": "[variables('StorageQueueName_CreaReq')]",
               "dependsOn": [
                 "[resourceId('Microsoft.Storage/storageAccounts',variables('storageAccountName'))]",
@@ -187,7 +187,7 @@
             },
             {
               "type": "Microsoft.Storage/storageAccounts/queueServices/queues",
-              "apiVersion": "2021-06-01",
+              "apiVersion": "2019-06-01",
               "name": "[variables('StorageQueueName_SavingsReq')]",
               "dependsOn": [
                 "[resourceId('Microsoft.Storage/storageAccounts',variables('storageAccountName'))]",
@@ -205,7 +205,7 @@
     },
     {
       "type": "Microsoft.Web/serverfarms",
-      "apiVersion": "2021-02-01",
+      "apiVersion": "2018-02-01",
       "name": "[variables('hostingPlanName')]",
       "location": "[resourceGroup().location]",
       "tags": {
@@ -224,7 +224,7 @@
       ]
     },
     {
-      "apiVersion": "2021-02-01",
+      "apiVersion": "2015-08-01",
       "type": "Microsoft.Web/sites",
       "name": "[variables('functionAppNameStartStopV2')]",
       "location": "[resourceGroup().location]",
@@ -270,7 +270,7 @@
             },
             {
               "name": "APPLICATIONINSIGHTS_CONNECTION_STRING",
-              "value": "[reference(resourceId('microsoft.insights/components/', variables('applicationInsightsName')), '2020-02-02-preview').ConnectionString]"
+              "value": "[reference(resourceId('microsoft.insights/components/', variables('applicationInsightsName')), '2015-05-01').ConnectionString]"
             },
             {
               "name": "FUNCTIONS_WORKER_RUNTIME",
@@ -330,7 +330,7 @@
             },
             {
               "name": "CentralizedLoggingOptions:Version",
-              "value": "1.0.20210819.1"
+              "value": "1.0.20210831.3"
             }
           ]
         }
@@ -340,7 +340,7 @@
           "name": "MSDeploy",
           "type": "extensions",
           "location": "[resourceGroup().location]",
-          "apiVersion": "2021-02-01",
+          "apiVersion": "2015-08-01",
           "dependsOn": [
             "[resourceId('Microsoft.Web/sites', variables('functionAppNameStartStopV2'))]"
           ],
@@ -359,7 +359,7 @@
       ]
     },
     {
-      "apiVersion": "2020-02-02",
+      "apiVersion": "2018-05-01-preview",
       "name": "[variables('applicationInsightsName')]",
       "type": "microsoft.insights/components",
       "location": "[parameters('appInsightRegion')]",
@@ -373,7 +373,7 @@
     },
     {
       "type": "Microsoft.Logic/workflows",
-      "apiVersion": "2019-05-01",
+      "apiVersion": "2017-07-01",
       "name": "[variables('LogicApp_Start_Scheduled')]",
       "location": "[resourceGroup().location]",
       "tags": {
@@ -492,7 +492,7 @@
     },
     {
       "type": "Microsoft.Logic/workflows",
-      "apiVersion": "2019-05-01",
+      "apiVersion": "2017-07-01",
       "name": "[variables('LogicApp_Stop_Scheduled')]",
       "location": "[resourceGroup().location]",
       "tags": {
@@ -612,7 +612,7 @@
     },
     {
       "type": "Microsoft.Logic/workflows",
-      "apiVersion": "2019-05-01",
+      "apiVersion": "2017-07-01",
       "name": "[variables('LogicApp_Start_Sequenced')]",
       "location": "[resourceGroup().location]",
       "tags": {
@@ -733,7 +733,7 @@
     },
     {
       "type": "Microsoft.Logic/workflows",
-      "apiVersion": "2019-05-01",
+      "apiVersion": "2017-07-01",
       "name": "[variables('LogicApp_Stop_Sequenced')]",
       "location": "[resourceGroup().location]",
       "tags": {
@@ -855,7 +855,7 @@
     },
     {
       "type": "Microsoft.Logic/workflows",
-      "apiVersion": "2019-05-01",
+      "apiVersion": "2017-07-01",
       "name": "[variables('LogicApp_AutoStop')]",
       "location": "[resourceGroup().location]",
       "tags": {
@@ -1000,7 +1000,7 @@
     },
     "pId": {
       "type": "string",
-      "value": "[reference(resourceId('Microsoft.Web/sites', variables('functionAppNameStartStopV2')), '2021-02-01', 'Full').identity.principalId]"
+      "value": "[reference(resourceId('Microsoft.Web/sites', variables('functionAppNameStartStopV2')), '2019-08-01', 'Full').identity.principalId]"
     },
     "FuncApp_ExternalId": {
       "type": "string",
